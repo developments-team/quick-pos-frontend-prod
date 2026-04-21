@@ -3,9 +3,8 @@ import axios from "axios";
 // const baseURL: 'https://statging-api-cde05b14206c.herokuapp.com/api/'
 
 const axiosInstance = axios.create({
-  // baseURL: 'https://statging-api-cde05b14206c.herokuapp.com/api',
-  // baseURL: 'https://staging-pos-apis.onrender.com/api',
-  baseURL: "http://localhost:3000/api",
+  // baseURL: "http://localhost:3000/api",
+  baseURL: "https://quick-pos-backend-prod.onrender.com/api",
   // You can set other default options here
   // timeout: 10000,
   // headers: {'X-Custom-Header': 'foobar'},

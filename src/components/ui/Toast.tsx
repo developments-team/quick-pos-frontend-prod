@@ -124,12 +124,15 @@ export function ToastProvider({ children }: { children: React.ReactNode }) {
     "bottom-left": "bottom-4 left-5",
   };
 
-  const groupedToasts = toasts.reduce((acc, toast) => {
-    const position = toast.position || "top-right";
-    if (!acc[position]) acc[position] = [];
-    acc[position].push(toast);
-    return acc;
-  }, {} as Record<ToastPosition, Toast[]>);
+  const groupedToasts = toasts.reduce(
+    (acc, toast) => {
+      const position = toast.position || "top-right";
+      if (!acc[position]) acc[position] = [];
+      acc[position].push(toast);
+      return acc;
+    },
+    {} as Record<ToastPosition, Toast[]>,
+  );
 
   return (
     <>
@@ -143,7 +146,7 @@ export function ToastProvider({ children }: { children: React.ReactNode }) {
             key={position}
             className={cn(
               "fixed z-100 flex flex-col gap-2 pointer-events-none cursor-default w-full max-w-78",
-              positionClasses[position]
+              positionClasses[position],
             )}
           >
             {positionToasts.map((toast) => (
@@ -163,54 +166,55 @@ function ToastItem({
   toast: Toast;
   onRemove: (id: string) => void;
 }) {
-  const [progress, setProgress] = useState(100);
-  const [isPaused, setIsPaused] = useState(false);
   const duration = toast.duration || 5000;
-  const intervalRef = React.useRef<ReturnType<typeof setTimeout> | null>(null);
+  const [isPaused, setIsPaused] = useState(false);
+  const [transitionDuration, setTransitionDuration] = useState(duration);
+  const [progress, setProgress] = useState(100);
   const startTimeRef = React.useRef<number>(0);
+  const remainingRef = React.useRef<number>(duration);
+  const timerRef = React.useRef<ReturnType<typeof setTimeout> | null>(null);
+  const hasStartedRef = React.useRef(false);
 
-  React.useEffect(() => {
-    startTimeRef.current = Date.now();
-  }, []);
-  const remainingTimeRef = React.useRef<number>(duration);
-
+  // Start the animation after first paint
   React.useEffect(() => {
     if (duration === 0) return;
+    const frame = requestAnimationFrame(() => {
+      hasStartedRef.current = true;
+      startTimeRef.current = Date.now();
+      setProgress(0);
+    });
+    return () => cancelAnimationFrame(frame);
+  }, [duration]);
 
-    const updateProgress = () => {
-      if (isPaused) return;
+  // Auto-dismiss timer
+  React.useEffect(() => {
+    if (duration === 0 || isPaused) return;
 
-      const now = Date.now();
-      const elapsed = now - startTimeRef.current;
-      const remaining = Math.max(0, remainingTimeRef.current - elapsed);
-      const newProgress = (remaining / duration) * 100;
-
-      setProgress(newProgress);
-
-      if (remaining <= 0) {
-        onRemove(toast.id);
-      } else {
-        intervalRef.current = setTimeout(updateProgress, 10);
-      }
-    };
-
-    intervalRef.current = setTimeout(updateProgress, 10);
+    timerRef.current = setTimeout(() => {
+      onRemove(toast.id);
+    }, remainingRef.current);
 
     return () => {
-      if (intervalRef.current) clearTimeout(intervalRef.current);
+      if (timerRef.current) clearTimeout(timerRef.current);
     };
   }, [duration, isPaused, onRemove, toast.id]);
 
   const handleMouseEnter = () => {
-    setIsPaused(true);
-    if (intervalRef.current) clearTimeout(intervalRef.current);
+    if (!hasStartedRef.current) return;
     const elapsed = Date.now() - startTimeRef.current;
-    remainingTimeRef.current = Math.max(0, remainingTimeRef.current - elapsed);
+    const remaining = Math.max(0, remainingRef.current - elapsed);
+    remainingRef.current = remaining;
+    const currentProgress = (remaining / duration) * 100;
+    setTransitionDuration(0);
+    setProgress(currentProgress);
+    setIsPaused(true);
   };
 
   const handleMouseLeave = () => {
-    setIsPaused(false);
     startTimeRef.current = Date.now();
+    setTransitionDuration(remainingRef.current);
+    setProgress(0);
+    setIsPaused(false);
   };
 
   // Tailwind safelist for dynamic classes:
@@ -258,7 +262,7 @@ function ToastItem({
   return (
     <div
       className={cn(
-        "pointer-events-auto relative flex items-start gap-3 p-3 rounded-lg bg-(--bg-card) shadow-[0_0_10px_rgba(0,0,0,0.4)] transition-all animate-in slide-in-from-right-full duration-300 overflow-hidden"
+        "pointer-events-auto relative flex items-start gap-3 p-3 rounded-lg bg-(--bg-card) shadow-[0_0_10px_rgba(0,0,0,0.4)] transition-all animate-in slide-in-from-right-full duration-300 overflow-hidden",
       )}
       onMouseEnter={handleMouseEnter}
       onMouseLeave={handleMouseLeave}
@@ -277,15 +281,15 @@ function ToastItem({
         <div
           className={cn(
             "absolute bottom-0 left-0 h-1.25 w-full ",
-            currentStyle.track
+            currentStyle.track,
           )}
         >
           <div
-            className={cn(
-              "h-full transition-all duration-100 ease-linear",
-              currentStyle.bar
-            )}
-            style={{ width: `${progress}%` }}
+            className={cn("h-full", currentStyle.bar)}
+            style={{
+              width: `${progress}%`,
+              transition: `width ${transitionDuration}ms linear`,
+            }}
           />
         </div>
       )}
